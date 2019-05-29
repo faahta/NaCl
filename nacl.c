@@ -25,8 +25,6 @@ chlorine_t chlorine;
 static void *na_threads(void *arg){
 	
 	int *id = (int *)arg;	
-	int i;
-	
 	sem_wait(sodium.sem);
 	pthread_mutex_lock(&chlorine.lock_cl);
 		int cl_id = chlorine.Cl[chlorine.index_cl];
@@ -51,8 +49,7 @@ static void *cl_threads(void *arg){
 		int na_id = sodium.Na[chlorine.index_cl];
 		printf("Na %d Cl %d \n",na_id,chlorine.Cl[chlorine.index_cl]);
 	pthread_mutex_unlock(&chlorine.lock_cl);
-		
-		
+				
 	//sleep(2);
 	pthread_mutex_lock(&chlorine.lock_cl);
 		chlorine.index_cl++;
@@ -102,8 +99,7 @@ void init(){
 	sem_init(sodium.sem, 0, 0);
 	chlorine.sem = (sem_t *)malloc(sizeof(sem_t));
 	sem_init(chlorine.sem, 0, 0);
-	
-	pthread_mutex_init(&sodium.lock_na, NULL);
+
 	pthread_mutex_init(&chlorine.lock_cl, NULL);
 }
 
