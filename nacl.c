@@ -5,56 +5,75 @@
 #include<pthread.h>
 #include<semaphore.h>
 
+#define NA 0
+#define CL 1
 
 int k;
-typedef struct sodium{	
-	int *Na;
-	sem_t *sem;
+typedef struct sodium{
+	int count;
+	sem_t *s_Na;
+	pthread_mutex_t lock_na;
 }sodium_t;
 
 typedef struct chlorine {
-	int index_cl;
-	int *Cl;
-	sem_t *sem;
+	int count;
+	sem_t *s_Cl;
 	pthread_mutex_t lock_cl;
 }chlorine_t;
 
+int *list[2];
+
 sodium_t sodium;
 chlorine_t chlorine;
+pthread_mutex_t mutex_first;
+int first = 1;
 
 static void *na_threads(void *arg){
 	
 	int *id = (int *)arg;	
-	sem_wait(sodium.sem);
-	pthread_mutex_lock(&chlorine.lock_cl);
-		int cl_id = chlorine.Cl[chlorine.index_cl];
-		sodium.Na[chlorine.index_cl] = *id;
-		printf("Na %d Cl %d - ",sodium.Na[chlorine.index_cl], cl_id);
-	pthread_mutex_unlock(&chlorine.lock_cl);
-			
-	sem_post(chlorine.sem);
+	//sleep(1);
+	int currNa;
+	pthread_mutex_lock(&sodium.lock_na);
+		currNa = sodium.count++;
+	pthread_mutex_unlock(&sodium.lock_na);
+	list[NA][currNa] = *id;
 	
+	sem_post(chlorine.s_Cl);
+	sem_wait(sodium.s_Na);
+	
+	pthread_mutex_lock(&mutex_first);
+		if(first){
+			first = 0;
+			printf("id %d - Na%d Cl%d\t", *id, list[NA][currNa], list[CL][currNa]);
+		} else{
+			first =1;
+			printf("id %d - Na%d Cl%d\n", *id, list[NA][currNa], list[CL][currNa]);
+		}
+	pthread_mutex_unlock(&mutex_first);
+
 }
 
 static void *cl_threads(void *arg){
-	int *id = (int *)arg;
-	sleep(2);
+	int *id = (int *)arg;	
+	//sleep(1);
+	int currCl;
 	pthread_mutex_lock(&chlorine.lock_cl);
-		chlorine.Cl[chlorine.index_cl] = *id;
+		currCl = chlorine.count++;
 	pthread_mutex_unlock(&chlorine.lock_cl);
-	sem_post(sodium.sem);
-	sem_wait(chlorine.sem);	
+	list[CL][currCl] = *id;
 	
-	pthread_mutex_lock(&chlorine.lock_cl);	
-		int na_id = sodium.Na[chlorine.index_cl];
-		printf("Na %d Cl %d \n",na_id,chlorine.Cl[chlorine.index_cl]);
-	pthread_mutex_unlock(&chlorine.lock_cl);
-				
-	//sleep(2);
-	pthread_mutex_lock(&chlorine.lock_cl);
-		chlorine.index_cl++;
-	pthread_mutex_unlock(&chlorine.lock_cl);
+	sem_post(sodium.s_Na);
+	sem_wait(chlorine.s_Cl);
 	
+	pthread_mutex_lock(&mutex_first);
+		if(first){
+			first = 0;
+			printf("id %d - Na%d Cl%d\t", *id, list[NA][currCl], list[CL][currCl]);
+		} else{
+			first =1;
+			printf("id %d - Na%d Cl%d\n", *id, list[NA][currCl], list[CL][currCl]);
+		}
+	pthread_mutex_unlock(&mutex_first);
 }
 
 
@@ -71,6 +90,7 @@ static void *sodium_thread(void *arg){
 	}
 	for(i=0; i<k; i++)
 		pthread_join(na_new[i], NULL);
+	return 0;
 
 }
 
@@ -88,22 +108,32 @@ static void *chlorine_thread(void *arg){
 	}
 	for(i=k; i<k; i++)
 		pthread_join(cl_new[i], NULL);
+	//return 0;
 }
 
 void init(){
-	chlorine.index_cl =0;
-	sodium.Na = (int *)malloc(k * sizeof(int));
-	chlorine.Cl = (int *)malloc(k * sizeof(int));
-
-	sodium.sem = (sem_t *)malloc(sizeof(sem_t));
-	sem_init(sodium.sem, 0, 0);
-	chlorine.sem = (sem_t *)malloc(sizeof(sem_t));
-	sem_init(chlorine.sem, 0, 0);
-
+	sodium.count = 0;
+	pthread_mutex_init(&sodium.lock_na, NULL);
+	sodium.s_Na = (sem_t *)malloc(sizeof(sem_t));
+	sem_init(sodium.s_Na, 0, 0);
+	
+	chlorine.count = 0;
 	pthread_mutex_init(&chlorine.lock_cl, NULL);
+	chlorine.s_Cl = (sem_t *)malloc(sizeof(sem_t));
+	sem_init(chlorine.s_Cl, 0, 0);
+	
+	pthread_mutex_init(&mutex_first, NULL);
+	
+	list[NA] = (int *) malloc(k *sizeof(int));
+  	list[CL] = (int *) malloc(k * sizeof(int));
 }
 
 int main(int argc, char *argv[]){
+	if(argc!=2){
+		printf("usage: %s k\n", argv[0]);
+		exit(1);
+	}
+	setbuf(stdout, 0);
 	k = atoi(argv[1]);
 	pthread_t th_na,th_cl;
 	init();
