@@ -36,6 +36,7 @@ static void *na_threads(void *arg){
 	pthread_mutex_lock(&sodium.lock_na);
 		currNa = sodium.count++;
 	pthread_mutex_unlock(&sodium.lock_na);
+	
 	list[NA][currNa] = *id;
 	
 	sem_post(chlorine.s_Cl);
